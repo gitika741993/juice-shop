@@ -5,3 +5,10 @@
 
 # Configuration with sensitive information
 config/environments.ts
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
