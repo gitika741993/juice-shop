@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { getCurrentEnvironment } from './environments';
+import { getCurrentEnvironment } from 'config/environments';
 import { loadEnv, getEnv } from './dotenv.config';
 
 loadEnv();
