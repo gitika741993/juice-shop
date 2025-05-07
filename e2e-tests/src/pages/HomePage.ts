@@ -14,6 +14,8 @@ export class HomePage extends BasePage {
    * Logout button in the account menu
    */
   private logoutButton: Locator;
+
+  private productCards: Locator;
   
   /**
    * Login button in the account menu (visible when not logged in)
@@ -40,6 +42,7 @@ export class HomePage extends BasePage {
     this.logoutButton = page.locator('#logout-link');
     this.loginButton = page.locator('#navbarLoginButton');
     this.searchBox = page.locator('#searchQuery');
+    this.productCards = page.locator('.mat-card');
     this.searchButton = page.locator('#searchButton');
   }
 
@@ -221,5 +224,10 @@ export class HomePage extends BasePage {
   async searchProduct(query: string): Promise<void> {
     await this.fill(this.searchBox, query);
     await this.click(this.searchButton);
+  }
+  async getProductCount(): Promise<number> {
+    // Add this property if it doesn't exist
+    this.productCards = this.page.locator('.mat-card');
+    return await this.productCards.count();
   }
 }
