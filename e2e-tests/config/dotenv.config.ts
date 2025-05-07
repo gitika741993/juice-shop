@@ -8,7 +8,7 @@ export function loadEnv(): void {
   dotenv.config({ path: path.resolve(__dirname, '../.env') });
   
   process.env.ENV = process.env.ENV || 'local';
-  process.env.BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+  process.env.BASE_URL = process.env.BASE_URL || 'https://local-juice-shop-app-tunnel-lvqj2tij.devinapps.com';
   process.env.HEADLESS = process.env.HEADLESS || 'false';
   process.env.SLOW_MO = process.env.SLOW_MO || '0';
   process.env.TIMEOUT = process.env.TIMEOUT || '30000';

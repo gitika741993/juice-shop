@@ -1,6 +1,7 @@
 import { Page } from '@playwright/test';
 import { LoginPage } from '../pages/LoginPage';
 import { getCurrentEnvironment } from '../../config/environments';
+import { HomePage } from '../pages/HomePage';
 
 /**
  * Authentication utilities for tests

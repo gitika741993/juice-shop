@@ -1,45 +1,46 @@
-import { defineConfig, devices } from '@playwright/test';
-import { getCurrentEnvironment } from 'config/environments';
-import { loadEnv, getEnv } from './dotenv.config';
+import { defineConfig } from '@playwright/test';
+import { getCurrentEnvironment } from './environments';
 
-loadEnv();
+const env = getCurrentEnvironment();
 
-/**
- * Environment-specific configuration for Playwright tests
- * This uses the environment settings from environments.ts and .env file
- */
 export default defineConfig({
   testDir: '../tests',
-  timeout: parseInt(getEnv('TIMEOUT', '30000')),
+  timeout: 30 * 1000,
   expect: {
     timeout: 5000
   },
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: parseInt(getEnv('RETRIES', '0')),
-  workers: parseInt(getEnv('WORKERS', '1')),
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: getCurrentEnvironment().baseUrl,
+    baseURL: env.baseUrl,
+    httpCredentials: env.name === 'Tunnel Environment' ? {
+      username: process.env.TUNNEL_USERNAME || 'user',
+      password: process.env.TUNNEL_PASSWORD || 'password'
+    } : undefined,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    headless: getEnv('HEADLESS', 'false') === 'true',
-    launchOptions: {
-      slowMo: parseInt(getEnv('SLOW_MO', '0')),
-    },
   },
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { 
+        browserName: 'chromium',
+      },
     },
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: { 
+        browserName: 'firefox',
+      },
     },
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      use: { 
+        browserName: 'webkit',
+      },
     },
   ],
 });

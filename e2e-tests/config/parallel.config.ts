@@ -21,7 +21,7 @@ export default defineConfig({
     ['json', { outputFile: '../test-results/test-results.json' }]
   ],
   use: {
-    baseURL: getEnv('BASE_URL', 'http://localhost:3000'),
+    baseURL: getEnv('BASE_URL', 'https://user:6c4e51d892a1c360799100396e7948d7@local-juice-shop-app-tunnel-lvqj2tij.devinapps.com'),
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

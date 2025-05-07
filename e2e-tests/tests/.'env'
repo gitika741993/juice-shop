@@ -1,0 +1,4 @@
+ENV=tunnel
+TUNNEL_BASE_URL=https://local-juice-shop-app-tunnel-lvqj2tij.devinapps.com
+TUNNEL_USERNAME=user
+TUNNEL_PASSWORD=6c4e51d892a1c360799100396e7948d7

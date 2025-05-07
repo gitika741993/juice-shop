@@ -1,60 +1,63 @@
 import { test, expect } from '@playwright/test';
 import { LoginPage } from '../src/pages/LoginPage';
 import { HomePage } from '../src/pages/HomePage';
-import { Navigation } from '../src/utils/navigation';
-import { Auth } from '../src/utils/auth';
-import { TestData } from '../src/utils/testData';
+import { getCurrentEnvironment } from '../config/environments';
+
+const env = getCurrentEnvironment();
 
 test.describe('Login and Logout', () => {
   test('should login successfully with valid credentials', async ({ page }) => {
-    const testUsers = TestData.getTestUsers();
-    const testUser = testUsers[0];
+    await page.goto('/');
+    await page.screenshot({ path: 'home-page-before-login.png' });
+    console.log('Current URL before login:', page.url());
     
-    const loginPage = await Navigation.goToLoginPage(page);
+    const loginPage = new LoginPage(page);
+    await loginPage.navigate();
     
-    await loginPage.login(testUser.email, testUser.password);
+    await page.screenshot({ path: 'login-page-loaded.png' });
+    console.log('Current URL after navigation:', page.url());
+    
+    await loginPage.login(env.credentials.admin.email, env.credentials.admin.password);
     
     const homePage = new HomePage(page);
-    await homePage.openAccountMenu();
-    await expect(page.locator('#navbarLogoutButton')).toBeVisible();
+    expect(await homePage.isLoggedIn()).toBe(true);
   });
   
   test('should show error with invalid credentials', async ({ page }) => {
-    const loginPage = await Navigation.goToLoginPage(page);
+    const loginPage = new LoginPage(page);
+    await loginPage.navigate();
+    await loginPage.login('invalid@example.com', 'wrongpassword');
     
-    await loginPage.login('invalid@example.com', 'invalidPassword');
-    
+    expect(await loginPage.isErrorMessageVisible()).toBe(true);
     const errorMessage = await loginPage.getErrorMessage();
     expect(errorMessage).toContain('Invalid email or password');
   });
   
   test('should logout successfully', async ({ page }) => {
-    await Auth.loginAsAdmin(page);
+    const loginPage = new LoginPage(page);
+    await loginPage.navigate();
+    await loginPage.login(env.credentials.admin.email, env.credentials.admin.password);
     
     const homePage = new HomePage(page);
-    await homePage.openAccountMenu();
-    await expect(page.locator('#navbarLogoutButton')).toBeVisible();
-    
     await homePage.logout();
     
-    await homePage.openAccountMenu();
-    await expect(page.locator('#navbarLoginButton')).toBeVisible();
+    expect(await homePage.isLoggedIn()).toBe(false);
   });
   
-  test('should remember user when "Remember Me" is checked', async ({ page }) => {
-    const testUsers = TestData.getTestUsers();
-    const testUser = testUsers[0];
-    
-    const loginPage = await Navigation.goToLoginPage(page);
-    
-    await loginPage.login(testUser.email, testUser.password, true);
+  test('should remember user when "Remember Me" is checked', async ({ page, context }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.navigate();
+    await loginPage.login(env.credentials.admin.email, env.credentials.admin.password, true);
     
     const homePage = new HomePage(page);
-    await homePage.openAccountMenu();
-    await expect(page.locator('#navbarLogoutButton')).toBeVisible();
+    expect(await homePage.isLoggedIn()).toBe(true);
     
-    await page.reload();
-    await homePage.openAccountMenu();
-    await expect(page.locator('#navbarLogoutButton')).toBeVisible();
+    const cookies = await context.cookies();
+    
+    const newPage = await context.newPage();
+    await newPage.goto('/');
+    
+    const newHomePage = new HomePage(newPage);
+    expect(await newHomePage.isLoggedIn()).toBe(true);
   });
 });

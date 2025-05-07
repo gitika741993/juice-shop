@@ -1,5 +1,15 @@
-import { Environment, getCurrentEnvironment } from '../../config/environments';
+import { getCurrentEnvironment } from '@config/environments';
 import { Page } from '@playwright/test';
+
+export type Environment = {
+  name: string;  // Make sure to include this property
+  baseUrl: string;
+  credentials: {
+    admin: { email: string; password: string };
+    customer: { email: string; password: string };
+  };
+};
+
 
 /**
  * Environment Manager utility for handling environment-specific operations

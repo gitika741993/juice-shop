@@ -16,7 +16,11 @@ export const baseConfig = defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    baseURL: process.env.BASE_URL || 'https://local-juice-shop-app-tunnel-lvqj2tij.devinapps.com',
+    httpCredentials: {
+      username: 'user',
+      password: '6c4e51d892a1c360799100396e7948d7'
+    },
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
