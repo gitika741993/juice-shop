@@ -1,220 +1,154 @@
-import { Locator, Page } from '@playwright/test';
-import { getCurrentEnvironment } from '../../config/environments';
+import { Page, Locator } from '@playwright/test';
+import { EnvironmentManager } from '@utils/environmentManager';
 
 /**
- * Base page class that all page objects inherit from
+ * Base Page Object class that all page objects should extend
  */
 export class BasePage {
-  /**
-   * The Playwright page object
-   */
-  protected page: Page;
-
   /**
    * Constructor
    * @param page Playwright page object
    */
-  constructor(page: Page) {
-    this.page = page;
-  }
+  constructor(protected page: Page) {}
 
   /**
-   * Navigate to a page
-   * @param path Path to navigate to (will be appended to baseUrl)
+   * Navigate to a specific URL path
+   * @param path The path to navigate to (will be appended to the base URL)
+   * @param retries Number of retries if navigation fails
    */
-  async navigate(path: string = ''): Promise<void> {
-    const env = getCurrentEnvironment();
-    const url = env.baseUrl + path;
-    console.log(`Navigating to: ${url}`);
+  async navigate(path: string = '', retries: number = 2): Promise<boolean> {
+    const baseUrl = EnvironmentManager.getBaseUrl();
+    const url = new URL(path, baseUrl).toString();
     
-    try {
-      await this.page.goto(url, { 
-        timeout: 60000,
-        waitUntil: 'domcontentloaded' // Less strict than 'load'
-      });
-      console.log(`Navigation complete, current URL: ${this.page.url()}`);
-      
-      await this.page.waitForLoadState('networkidle', { timeout: 30000 }).catch(e => {
-        console.log('Navigation did not reach networkidle, continuing anyway');
-      });
-    } catch (error) {
-      console.error(`Navigation to ${url} failed:`, error);
-      await this.page.screenshot({ path: `navigation-error-${Date.now()}.png` });
-    }
-  }
-
-  /**
-   * Get the page title
-   * @returns The page title
-   */
-  async getTitle(): Promise<string> {
-    return await this.page.title();
-  }
-
-  /**
-   * Wait for an element to be visible
-   * @param locator Element locator
-   * @param timeout Timeout in milliseconds
-   */
-  async waitForElement(locator: Locator, timeout?: number): Promise<void> {
-    try {
-      // First try to dismiss any overlays that might be blocking the element
-      const overlay = this.page.locator('.cdk-overlay-container');
-      if (await overlay.isVisible()) {
-        console.log('Overlay detected before waitForElement, attempting to dismiss...');
-        
-        const closeButton = this.page.locator('button[aria-label="Close Welcome Banner"]');
-        if (await closeButton.isVisible()) {
-          console.log('Close button found, clicking it...');
-          await closeButton.click({ force: true });
-        } else {
-          console.log('No close button found, clicking outside dialog...');
-          await this.page.mouse.click(10, 10);
-        }
-        
-        await this.page.waitForTimeout(1000);
-      }
-      
-      // Take a screenshot to help with debugging
-      await this.page.screenshot({ path: `before-wait-for-element-${Date.now()}.png` });
-      
-      // Try to wait for the element with a reasonable timeout
-      await locator.waitFor({ state: 'visible', timeout: timeout || 10000 });
-    } catch (error) {
-      console.log(`Error waiting for element: ${error}`);
-      
-      // Take a screenshot after the error
-      await this.page.screenshot({ path: `wait-for-element-error-${Date.now()}.png` });
-      
-      // Check if the element exists but is not visible
-      const exists = await locator.count() > 0;
-      if (exists) {
-        console.log('Element exists but is not visible, trying to scroll to it...');
-        try {
-          await locator.scrollIntoViewIfNeeded();
-          await this.page.waitForTimeout(1000);
-        } catch (scrollError) {
-          console.log(`Error scrolling to element: ${scrollError}`);
-        }
-      }
-      
-      // Throw the original error if we couldn't recover
-      throw error;
-    }
-  }
-
-  /**
-   * Click an element
-   * @param locator Element locator
-   */
-  async click(locator: Locator): Promise<void> {
-    try {
-      const overlay = this.page.locator('.cdk-overlay-container');
-      if (await overlay.isVisible()) {
-        console.log('Overlay detected, attempting to dismiss...');
-        
-        const closeButton = this.page.locator('button[aria-label="Close Welcome Banner"]');
-        if (await closeButton.isVisible()) {
-          console.log('Close button found, clicking it...');
-          await closeButton.click({ force: true });
-        } else {
-          console.log('No close button found, clicking outside dialog...');
-          await this.page.mouse.click(10, 10);
-        }
-        
-        await this.page.waitForTimeout(1000);
-      }
-      
-      await locator.click({ timeout: 10000 });
-    } catch (error) {
-      console.log(`Error clicking element: ${error}`);
-      
+    let success = false;
+    let attempts = 0;
+    
+    while (!success && attempts <= retries) {
       try {
-        await locator.click({ force: true, timeout: 5000 });
-        console.log('Force click successful');
-      } catch (forceError) {
-        console.log(`Force click also failed: ${forceError}`);
+        console.log(`Navigating to ${url} (attempt ${attempts + 1}/${retries + 1})`);
+        await this.page.goto(url, { 
+          timeout: 30000,
+          waitUntil: 'domcontentloaded'
+        });
+        success = true;
+      } catch (error) {
+        console.log(`Navigation error (attempt ${attempts + 1}/${retries + 1}):`, error);
         
-        try {
-          await this.page.evaluate((selector) => {
-            const element = document.querySelector(selector);
-            if (element) (element as HTMLElement).click();
-          }, locator.toString());
-          console.log('JavaScript click attempted');
-        } catch (jsError) {
-          console.log(`JavaScript click failed: ${jsError}`);
-          throw error; // Re-throw the original error
+        if (attempts === retries) {
+          console.log('All retries failed, attempting to use fallback URLs...');
+          success = await EnvironmentManager.setupEnvironment(this.page);
+          
+          if (success && path) {
+            const newBaseUrl = EnvironmentManager.getBaseUrl();
+            const newUrl = new URL(path, newBaseUrl).toString();
+            
+            try {
+              console.log(`Navigating to ${newUrl} with fallback URL`);
+              await this.page.goto(newUrl, { 
+                timeout: 30000,
+                waitUntil: 'domcontentloaded'
+              });
+            } catch (pathError) {
+              console.log(`Failed to navigate to path with fallback URL:`, pathError);
+              success = false;
+            }
+          }
         }
+        
+        attempts++;
       }
     }
+    
+    return success;
   }
 
   /**
-   * Fill a form field
-   * @param locator Element locator
-   * @param value Value to fill
+   * Wait for navigation to complete
+   * @param options Options for waiting
    */
-  async fill(locator: Locator, value: string): Promise<void> {
-    try {
-      const overlay = this.page.locator('.cdk-overlay-container');
-      if (await overlay.isVisible()) {
-        console.log('Overlay detected before fill, attempting to dismiss...');
-        
-        const closeButton = this.page.locator('button[aria-label="Close Welcome Banner"]');
-        if (await closeButton.isVisible()) {
-          console.log('Close button found, clicking it...');
-          await closeButton.click({ force: true });
-        } else {
-          console.log('No close button found, clicking outside dialog...');
-          await this.page.mouse.click(10, 10);
-        }
-        
-        await this.page.waitForTimeout(1000);
-      }
-      
-      await locator.fill(value);
-    } catch (error) {
-      console.log(`Error filling element: ${error}`);
-      
-      try {
-        await locator.fill(value, { timeout: 5000 });
-        console.log('Fill with timeout successful');
-      } catch (timeoutError) {
-        console.log(`Fill with timeout failed: ${timeoutError}`);
-        
-        try {
-          await this.page.evaluate(([selector, val]) => {
-            const element = document.querySelector(selector) as HTMLInputElement;
-            if (element) element.value = val;
-          }, [locator.toString(), value]);
-          console.log('JavaScript fill attempted');
-        } catch (jsError) {
-          console.log(`JavaScript fill failed: ${jsError}`);
-          throw error; // Re-throw the original error
-        }
-      }
-    }
+  async waitForNavigation(options = { waitUntil: 'networkidle' }): Promise<void> {
+    await this.page.waitForLoadState(options.waitUntil as any);
   }
 
   /**
    * Check if an element is visible
-   * @param locator Element locator
-   * @returns True if the element is visible
+   * @param selector CSS selector for the element
+   * @param timeout Timeout in milliseconds
+   * @returns True if the element is visible, false otherwise
    */
-  async isVisible(locator: Locator): Promise<boolean> {
-    try{
-    return await locator.isVisible();
+  async isVisible(selector: string, timeout = 5000): Promise<boolean> {
+    try {
+      await this.page.waitForSelector(selector, { state: 'visible', timeout });
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
-  catch (error) {
-    console.log(`Error showing element: ${error}`);
-    return false;
-  }}
+
   /**
-   * Get text from an element
-   * @param locator Element locator
-   * @returns The element text
+   * Click on an element
+   * @param selector CSS selector for the element
+   * @param options Options for clicking
    */
-  async getText(locator: Locator): Promise<string> {
-    return await locator.innerText();
+  async click(selector: string, options = {}): Promise<void> {
+    await this.dismissOverlaysIfPresent();
+    await this.page.click(selector, options);
+  }
+
+  /**
+   * Fill a form field
+   * @param selector CSS selector for the form field
+   * @param value Value to fill
+   */
+  async fill(selector: string, value: string): Promise<void> {
+    await this.dismissOverlaysIfPresent();
+    await this.page.fill(selector, value);
+  }
+
+  /**
+   * Take a screenshot
+   * @param name Name of the screenshot
+   */
+  async takeScreenshot(name: string): Promise<void> {
+    await this.page.screenshot({ path: `${name}-${Date.now()}.png` });
+  }
+
+  /**
+   * Dismiss overlays or dialogs that may block UI interactions
+   */
+  async dismissOverlaysIfPresent(): Promise<void> {
+    // Dismiss welcome banner if present
+    const welcomeBanner = this.page.locator('app-welcome-banner button');
+    if (await welcomeBanner.isVisible()) {
+      try {
+        await welcomeBanner.click();
+        console.log('Dismissed welcome banner');
+      } catch (error) {
+        console.log('Error dismissing welcome banner:', error);
+      }
+    }
+
+    // Dismiss cookie consent if present
+    const cookieConsent = this.page.locator('div[aria-label="cookieconsent"] button');
+    if (await cookieConsent.isVisible()) {
+      try {
+        await cookieConsent.click();
+        console.log('Dismissed cookie consent');
+      } catch (error) {
+        console.log('Error dismissing cookie consent:', error);
+      }
+    }
+
+    // Dismiss any other dialogs or overlays as needed
+    // Add more dismissal logic here as needed
+  }
+
+  /**
+   * Get a locator for an element
+   * @param selector CSS selector for the element
+   * @returns Playwright Locator object
+   */
+  getLocator(selector: string): Locator {
+    return this.page.locator(selector);
   }
 }

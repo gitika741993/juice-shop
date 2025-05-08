@@ -1,179 +1,164 @@
-import { Locator, Page } from '@playwright/test';
+import { Page } from '@playwright/test';
 import { BasePage } from './BasePage';
+import { Navigation } from '../utils/navigation';
 
 /**
- * Page object for the login page
+ * Login Page Object
  */
 export class LoginPage extends BasePage {
-  /**
-   * Email input field
-   */
-  private emailInput: Locator;
-
-  /**
-   * Password input field
-   */
-  private passwordInput: Locator;
-
-  /**
-   * Login button
-   */
-  private loginButton: Locator;
-
-  /**
-   * Remember me checkbox
-   */
-  private rememberMeCheckbox: Locator;
-
-  /**
-   * Error message
-   */
-  private errorMessage: Locator;
-
+  // Selectors
+  private readonly emailInput = '#email';
+  private readonly passwordInput = '#password';
+  private readonly loginButton = '#loginButton';
+  private readonly rememberMeCheckbox = '#rememberMe';
+  private readonly errorMessage = '.error';
+  private readonly newCustomerLink = '#newCustomerLink';
+  
   /**
    * Constructor
    * @param page Playwright page object
    */
   constructor(page: Page) {
     super(page);
-    // Use multiple selectors for better reliability
-    this.emailInput = page.locator('input[name="email"], input#email, input[id="email"]').first();
-    this.passwordInput = page.locator('input[name="password"], input#password, input[id="password"]').first();
-    this.loginButton = page.locator('button[id="loginButton"], #loginButton, button:has-text("Log in")').first();
-    this.rememberMeCheckbox = page.locator('mat-checkbox[id="rememberMe"], #rememberMe, input[id="rememberMe-input"]').first();
-    this.errorMessage = page.locator('div.error, .error-message, mat-error').first();
   }
-
+  
   /**
    * Navigate to the login page
    */
-  async navigate(): Promise<void> {
-    // Add cookies to dismiss welcome banner and cookie consent
-    await this.page.context().addCookies([
-      {
-        name: 'welcomebanner_status',
-        value: 'dismiss',
-        domain: new URL(this.page.url()).hostname || 'demo.owasp-juice.shop',
-        path: '/',
-      },
-      {
-        name: 'cookieconsent_status',
-        value: 'dismiss',
-        domain: new URL(this.page.url()).hostname || 'demo.owasp-juice.shop',
-        path: '/',
-      }
-    ]);
-    
-    await super.navigate('/#/login');
-    
-    // Take a screenshot to help with debugging
-    try {
-  await this.page.screenshot({ path: `login-page-navigation-${Date.now()}.png` });
-} catch (error) {
-  console.log('Failed to take screenshot:', error);
-}
-    
-    try {
-      // Try to wait for the email input with a reasonable timeout
-      await this.waitForElement(this.emailInput, 15000);
-    } catch (error) {
-      console.log(`Error waiting for email input: ${error}`);
-      
-      // Check if there's an overlay and try to dismiss it
-      try{
-      const overlay = this.page.locator('.cdk-overlay-container');
-      if (await overlay.isVisible()) {
-        console.log('Overlay detected during navigation, attempting to dismiss...');
-        
-        const closeButton = this.page.locator('button[aria-label="Close Welcome Banner"]');
-        if (await closeButton.isVisible()) {
-          console.log('Close button found, clicking it...');
-          await closeButton.click({ force: true });
-        } else {
-          console.log('No close button found, clicking outside dialog...');
-          await this.page.mouse.click(10, 10);
-        }
-        
-        await this.page.waitForTimeout(1000);
-        
-        // Try again to wait for the email input
-        await this.waitForElement(this.emailInput, 10000).catch(e => {
-          console.log(`Still couldn't find email input after dismissing overlay: ${e}`);
-        });
-      }
-    }
-    catch (error) {
-      console.log('Error checking overlay visibility:', error);
-    }
-  }}
-
-  /**
-   * Login with the given credentials
-   * @param email Email
-   * @param password Password
-   * @param rememberMe Whether to check the remember me checkbox
-   */
-  async login(email: string, password: string, rememberMe: boolean = false): Promise<void> {
-    try {
-      const welcomeBanner = this.page.locator('.cdk-overlay-container');
-      if (await welcomeBanner.isVisible()) {
-        console.log('Welcome banner detected before login, attempting to dismiss...');
-        
-        const closeButton = this.page.locator('button[aria-label="Close Welcome Banner"]');
-        if (await closeButton.isVisible()) {
-          console.log('Close button found, clicking it...');
-          await closeButton.click({ force: true });
-        } else {
-          const xButton = this.page.locator('.close-dialog');
-          if (await xButton.isVisible()) {
-            console.log('X button found, clicking it...');
-            await xButton.click({ force: true });
-          } else {
-            console.log('No close buttons found, clicking outside dialog...');
-            await this.page.mouse.click(10, 10);
-          }
-        }
-        
-        await this.page.waitForTimeout(1000);
-      }
-    } catch (error) {
-      console.log('Error handling welcome dialog:', error);
-    }
-    
-    await this.fill(this.emailInput, email);
-    await this.fill(this.passwordInput, password);
-    
-    if (rememberMe) {
-      await this.click(this.rememberMeCheckbox);
-    }
-    
-    // Take screenshot before clicking login button
-    await this.page.screenshot({ path: `before-login-click-${Date.now()}.png` });
-    
-    try {
-      await this.loginButton.click({ timeout: 10000 });
-    } catch (error) {
-      console.log('Error clicking login button, trying force click:', error);
-      await this.loginButton.click({ force: true, timeout: 5000 });
-    }
-    
-    await this.page.screenshot({ path: `after-login-attempt-${Date.now()}.png` });
+  async navigateToLogin(): Promise<void> {
+    await this.navigate('/#/login');
+    await this.dismissOverlaysIfPresent();
   }
-
+  
   /**
-   * Get the error message
+   * Login with the provided credentials
+   * @param email Email address
+   * @param password Password
+   * @param rememberMe Whether to check the "Remember Me" checkbox
+   * @returns True if login was successful, false otherwise
+   */
+  async login(email: string, password: string, rememberMe: boolean = false): Promise<boolean> {
+    try {
+      console.log(`Attempting to login with email: ${email}`);
+      
+      // Fill the email field
+      await this.fill(this.emailInput, email);
+      console.log('Filled email field');
+      
+      // Fill the password field
+      await this.fill(this.passwordInput, password);
+      console.log('Filled password field');
+      
+      // Check the "Remember Me" checkbox if requested
+      if (rememberMe) {
+        try {
+          // Try direct click first
+          await this.click(this.rememberMeCheckbox);
+          console.log('Clicked Remember Me checkbox');
+        } catch (error) {
+          console.log('Error clicking Remember Me checkbox, trying JavaScript click:', error);
+          
+          // If direct click fails, try using JavaScript
+          await this.page.evaluate(() => {
+            const checkbox = document.querySelector('#rememberMe') as HTMLInputElement;
+            if (checkbox) {
+              checkbox.checked = true;
+              checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          });
+          
+          console.log('Used JavaScript to check Remember Me checkbox');
+        }
+      }
+      
+      // Take a screenshot before clicking login
+      await this.takeScreenshot('before-login-click');
+      
+      // Click the login button
+      await this.click(this.loginButton);
+      console.log('Clicked login button');
+      
+      // Wait for navigation to complete
+      await this.waitForNavigation();
+      console.log('Navigation completed after login');
+      
+      // Take a screenshot after login attempt
+      await this.takeScreenshot('after-login-click');
+      
+      // Check if login was successful by verifying the URL
+      const currentUrl = this.page.url();
+      const isLoggedIn = !currentUrl.includes('/login');
+      
+      if (isLoggedIn) {
+        console.log('Login successful');
+      } else {
+        console.log('Login failed - still on login page');
+      }
+      
+      return isLoggedIn;
+    } catch (error) {
+      console.log('Error during login:', error);
+      
+      // Take a screenshot on error
+      await this.takeScreenshot('login-error');
+      
+      // Try a fallback login approach if the first attempt failed
+      try {
+        console.log('Attempting fallback login approach');
+        
+        // Navigate to login page again
+        await this.navigateToLogin();
+        
+        // Fill the email field
+        await this.page.fill(this.emailInput, email);
+        
+        // Fill the password field
+        await this.page.fill(this.passwordInput, password);
+        
+        // Click the login button
+        await this.page.click(this.loginButton);
+        
+        // Wait for navigation to complete
+        await this.waitForNavigation();
+        
+        // Check if login was successful
+        const currentUrl = this.page.url();
+        const isLoggedIn = !currentUrl.includes('/login');
+        
+        if (isLoggedIn) {
+          console.log('Fallback login successful');
+        } else {
+          console.log('Fallback login failed');
+        }
+        
+        return isLoggedIn;
+      } catch (fallbackError) {
+        console.log('Fallback login also failed:', fallbackError);
+        return false;
+      }
+    }
+  }
+  
+  /**
+   * Get the error message displayed on the login page
    * @returns The error message text
    */
   async getErrorMessage(): Promise<string> {
-    await this.waitForElement(this.errorMessage);
-    return await this.getText(this.errorMessage);
+    try {
+      await this.page.waitForSelector(this.errorMessage, { state: 'visible', timeout: 5000 });
+      const message = await this.page.textContent(this.errorMessage);
+      return message || '';
+    } catch (error) {
+      console.log('Error getting error message:', error);
+      return '';
+    }
   }
-
+  
   /**
-   * Check if the error message is visible
-   * @returns True if the error message is visible
+   * Click the "New Customer" link to go to the registration page
    */
-  async isErrorMessageVisible(): Promise<boolean> {
-    return await this.isVisible(this.errorMessage);
+  async goToRegistration(): Promise<void> {
+    await this.click(this.newCustomerLink);
+    await this.waitForNavigation();
   }
 }
